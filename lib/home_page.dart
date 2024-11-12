@@ -21,6 +21,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final GlobalKey _globalKey = GlobalKey();
   late WebViewController _controller;
+  double _webViewHeight = 800;
 
   String htmlContent = "";
   @override
@@ -36,8 +37,13 @@ class _HomePageState extends State<HomePage> {
           onPageStarted: (String url) {
             // Actions to perform when page starts loading
           },
-          onPageFinished: (String url) {
-            // Actions to perform when page finishes loading
+          onPageFinished: (String url) async {
+            final height = await _controller.runJavaScriptReturningResult(
+              'document.documentElement.scrollHeight;',
+            );
+            setState(() {
+              _webViewHeight = double.parse(height.toString());
+            });
           },
           onWebResourceError: (WebResourceError error) {
             // Handle web resource errors
@@ -58,7 +64,8 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildTemplate() {
     return SizedBox(
-      height: 400, //need provide
+      width: MediaQuery.of(context).size.width + 20,
+      height: _webViewHeight, //need provide
       child: WebViewWidget(controller: _controller),
     );
   }
