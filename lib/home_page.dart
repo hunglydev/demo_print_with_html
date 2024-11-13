@@ -68,8 +68,9 @@ class _HomePageState extends State<HomePage> {
   Widget _buildTemplate() {
     return Transform.scale(
       scale: 1.1,
-      child: SizedBox(
+      child: Container(
         width: MediaQuery.of(context).size.width + 20,
+        color: Colors.white,
         height: _webViewHeight, //need provide
         child: WebViewWidget(controller: _controller),
       ),
@@ -87,9 +88,9 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      // Convert ui.Image to Uint8List (PNG)
       final ByteData? byteData =
           await uiImage.toByteData(format: ui.ImageByteFormat.png);
+
       if (byteData == null) {
         if (kDebugMode) {
           print("Cannot convert image to byte data");
@@ -98,6 +99,7 @@ class _HomePageState extends State<HomePage> {
       }
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
+      final Uint8List? jpegData = await convertPngToJpeg(pngBytes);
       // Decode using image package
       final img.Image? decodedImage = img.decodeImage(pngBytes);
       if (decodedImage == null) {
@@ -118,7 +120,7 @@ class _HomePageState extends State<HomePage> {
           Uint8List.fromList(img.encodePng(scaledForPrint));
 
       setState(() {
-        _uiImageBytes = pngBytes;
+        _uiImageBytes = jpegData;
         _imagePackageBytes = scaledPngBytes;
       });
 
@@ -148,6 +150,16 @@ class _HomePageState extends State<HomePage> {
         print("Error capturing and printing image: $e");
       }
     }
+  }
+
+  Future<Uint8List?> convertPngToJpeg(Uint8List pngBytes,
+      {int quality = 80}) async {
+    img.Image? image = img.decodePng(pngBytes);
+    if (image == null) {
+      return null;
+    }
+    List<int> jpegBytes = img.encodeJpg(image, quality: quality);
+    return Uint8List.fromList(jpegBytes);
   }
 
   Future<ui.Image?> _captureWidgetAsImage() async {
