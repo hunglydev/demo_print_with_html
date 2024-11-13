@@ -103,10 +103,10 @@ class _HomePageState extends State<HomePage> {
       final Uint8List scaledPngBytes =
           Uint8List.fromList(img.encodePng(scaledForPrint));
 
-      setState(() {
-        _uiImageBytes = imageBytes;
-        _imagePackageBytes = scaledPngBytes;
-      });
+      // setState(() {
+      //   _uiImageBytes = imageBytes;
+      //   _imagePackageBytes = scaledPngBytes;
+      // });
 
       // Proceed to print
       const PaperSize paper = PaperSize.mm80;
@@ -186,12 +186,6 @@ class _HomePageState extends State<HomePage> {
                     child: const Text("In"),
                   ),
                   const SizedBox(width: 30),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {});
-                    },
-                    child: const Text("Set State"),
-                  ),
                 ],
               ),
               const SizedBox(height: 30),
