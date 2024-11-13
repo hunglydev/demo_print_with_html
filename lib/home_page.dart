@@ -17,7 +17,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   // final GlobalKey _globalKey = GlobalKey();
   InAppWebViewController? _webViewController;
-  double _webViewHeight = 800;
+  double _webViewHeight = 300;
   String htmlContent = "";
 
   Uint8List? _uiImageBytes;
@@ -42,14 +42,13 @@ class _HomePageState extends State<HomePage> {
         },
         onLoadStop: (controller, url) async {
           String? heightString = await controller.evaluateJavascript(
-              source: "document.body.scrollHeight.toString();");
-          double height = double.tryParse(heightString ?? '800') ?? 800;
+              source: "document.documentElement.scrollHeight.toString();");
+          double height = double.tryParse(heightString ?? '500') ?? 500;
           setState(() {
             _webViewHeight = height.toDouble();
           });
         },
-        onProgressChanged: (controller, progress) {
-        },
+        onProgressChanged: (controller, progress) {},
         onConsoleMessage: (controller, consoleMessage) {
           if (kDebugMode) {
             print("Console Message: ${consoleMessage.message}");
@@ -65,7 +64,6 @@ class _HomePageState extends State<HomePage> {
 
       if (defaultTargetPlatform == TargetPlatform.iOS ||
           defaultTargetPlatform == TargetPlatform.android) {
-        // Sử dụng phương thức takeScreenshot của InAppWebView
         if (_webViewController != null) {
           imageBytes = await _webViewController!.takeScreenshot();
         }
@@ -159,52 +157,49 @@ class _HomePageState extends State<HomePage> {
         title: const Text("Hiển Thị Hình Ảnh và Base64"),
       ),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: MediaQuery.of(context).size.width + 20,
-                height: _webViewHeight,
-                child: _buildTemplate(),
-              ),
-              const SizedBox(height: 30),
-              Row(
-                children: [
-                  ElevatedButton(
-                    onPressed: () async {
-                      await _captureAndPrintImage();
-                    },
-                    child: const Text("In"),
-                  ),
-                  const SizedBox(width: 30),
-                ],
-              ),
-              const SizedBox(height: 30),
-              if (_uiImageBytes != null) ...[
-                const Text(
-                  "Ảnh raw:",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: MediaQuery.of(context).size.width + 20,
+              height: _webViewHeight,
+              child: _buildTemplate(),
+            ),
+            const SizedBox(height: 30),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: () async {
+                    await _captureAndPrintImage();
+                  },
+                  child: const Text("In"),
                 ),
-                Image.memory(
-                  _uiImageBytes!,
-                  fit: BoxFit.cover,
-                ),
-                const SizedBox(height: 20),
+                const SizedBox(width: 30),
               ],
-              if (_imagePackageBytes != null) ...[
-                const Text(
-                  "Ảnh cuối:",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Image.memory(
-                  _imagePackageBytes!,
-                  fit: BoxFit.cover,
-                ),
-              ],
+            ),
+            const SizedBox(height: 30),
+            if (_uiImageBytes != null) ...[
+              const Text(
+                "Ảnh raw:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Image.memory(
+                _uiImageBytes!,
+                fit: BoxFit.cover,
+              ),
+              const SizedBox(height: 20),
             ],
-          ),
+            if (_imagePackageBytes != null) ...[
+              const Text(
+                "Ảnh cuối:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Image.memory(
+                _imagePackageBytes!,
+                fit: BoxFit.cover,
+              ),
+            ],
+          ],
         ),
       ),
     );
