@@ -1,15 +1,15 @@
-import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:image/image.dart' as img;
+
 import 'common.dart';
 import 'const.dart';
-import 'package:image/image.dart' as img;
-import 'dart:ui' as ui;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,7 +20,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final GlobalKey _globalKey = GlobalKey();
-  late WebViewController _controller;
+  InAppWebViewController? _webViewController;
   double _webViewHeight = 800;
   String htmlContent = "";
 
@@ -31,77 +31,61 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     htmlContent = decodeBase64ToHtml(htmlBase64);
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (int progress) {},
-          onPageStarted: (String url) {
-            // Actions to perform when page starts loading
-          },
-          onPageFinished: (String url) async {
-            final height = await _controller.runJavaScriptReturningResult(
-              'document.documentElement.scrollHeight;',
-            );
-            setState(() {
-              _webViewHeight = double.parse(height.toString());
-            });
-          },
-          onWebResourceError: (WebResourceError error) {
-            // Handle web resource errors
-            if (kDebugMode) {
-              print("WebView Error: ${error.description}");
-            }
-          },
-        ),
-      )
-      ..loadRequest(
-        Uri.dataFromString(
-          htmlContent,
-          mimeType: 'text/html',
-          encoding: Encoding.getByName('utf-8'),
-        ),
-      );
   }
 
   Widget _buildTemplate() {
-    return Transform.scale(
-      scale: 1.1,
-      child: Container(
-        width: MediaQuery.of(context).size.width + 20,
-        color: Colors.white,
-        height: _webViewHeight, //need provide
-        child: WebViewWidget(controller: _controller),
+    return SizedBox(
+      height: _webViewHeight,
+      width: MediaQuery.of(context).size.width,
+      child: InAppWebView(
+        initialData: InAppWebViewInitialData(
+          data: htmlContent,
+        ),
+        onWebViewCreated: (controller) {
+          _webViewController = controller;
+        },
+        onLoadStop: (controller, url) async {
+          // Lấy chiều cao của nội dung web
+          String? heightString = await controller.evaluateJavascript(
+              source: "document.body.scrollHeight.toString();");
+          double height = double.tryParse(heightString ?? '800') ?? 800;
+          setState(() {
+            _webViewHeight = height.toDouble();
+          });
+        },
+        onProgressChanged: (controller, progress) {
+          // Bạn có thể sử dụng progress để hiển thị tiến độ tải trang nếu muốn
+        },
+        onConsoleMessage: (controller, consoleMessage) {
+          if (kDebugMode) {
+            print("Console Message: ${consoleMessage.message}");
+          }
+        },
       ),
     );
   }
 
   Future<void> _captureAndPrintImage() async {
     try {
-      // Capture the widget as ui.Image
-      final ui.Image? uiImage = await _captureWidgetAsImage();
-      if (uiImage == null) {
+      Uint8List? imageBytes;
+
+      if (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android) {
+        // Sử dụng phương thức takeScreenshot của InAppWebView
+        if (_webViewController != null) {
+          imageBytes = await _webViewController!.takeScreenshot();
+        }
+      }
+
+      if (imageBytes == null) {
         if (kDebugMode) {
-          print("Cannot capture widget as image");
+          print("Captured image is null");
         }
         return;
       }
 
-      final ByteData? byteData =
-          await uiImage.toByteData(format: ui.ImageByteFormat.png);
-
-      if (byteData == null) {
-        if (kDebugMode) {
-          print("Cannot convert image to byte data");
-        }
-        return;
-      }
-      final Uint8List pngBytes = byteData.buffer.asUint8List();
-
-      final Uint8List? jpegData = await convertPngToJpeg(pngBytes);
       // Decode using image package
-      final img.Image? decodedImage = img.decodeImage(pngBytes);
+      final img.Image? decodedImage = img.decodeImage(imageBytes);
       if (decodedImage == null) {
         if (kDebugMode) {
           print("Cannot decode image using image package");
@@ -120,10 +104,11 @@ class _HomePageState extends State<HomePage> {
           Uint8List.fromList(img.encodePng(scaledForPrint));
 
       setState(() {
-        _uiImageBytes = jpegData;
+        _uiImageBytes = imageBytes;
         _imagePackageBytes = scaledPngBytes;
       });
 
+      // Proceed to print
       const PaperSize paper = PaperSize.mm80;
       final profile = await CapabilityProfile.load();
       final printer = NetworkPrinter(paper, profile);
@@ -131,20 +116,20 @@ class _HomePageState extends State<HomePage> {
       final PosPrintResult res =
           await printer.connect('192.168.29.150', port: 9100);
 
-      // if (res == PosPrintResult.success) {
-      //   printer.image(scaledForPrint);
-      //   printer.feed(2);
-      //   printer.cut();
-      //
-      //   printer.disconnect();
-      //   if (kDebugMode) {
-      //     print("Print successful");
-      //   }
-      // } else {
-      //   if (kDebugMode) {
-      //     print("Cannot connect to printer: ${res.msg}");
-      //   }
-      // }
+      if (res == PosPrintResult.success) {
+        printer.image(scaledForPrint);
+        printer.feed(2);
+        printer.cut();
+
+        printer.disconnect();
+        if (kDebugMode) {
+          print("Print successful");
+        }
+      } else {
+        if (kDebugMode) {
+          print("Cannot connect to printer: ${res.msg}");
+        }
+      }
     } catch (e) {
       if (kDebugMode) {
         print("Error capturing and printing image: $e");
@@ -152,36 +137,26 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<Uint8List?> convertPngToJpeg(Uint8List pngBytes,
-      {int quality = 80}) async {
-    img.Image? image = img.decodePng(pngBytes);
-    if (image == null) {
-      return null;
-    }
-    List<int> jpegBytes = img.encodeJpg(image, quality: quality);
-    return Uint8List.fromList(jpegBytes);
-  }
-
-  Future<ui.Image?> _captureWidgetAsImage() async {
-    try {
-      final boundary = _globalKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
-      if (boundary == null) {
-        if (kDebugMode) {
-          print("RenderRepaintBoundary không tồn tại");
-        }
-        return null;
-      }
-
-      final ui.Image image = await boundary.toImage(pixelRatio: 6.0);
-      return image;
-    } catch (e) {
-      if (kDebugMode) {
-        print("Lỗi khi chụp widget thành hình ảnh: $e");
-      }
-      return null;
-    }
-  }
+  // Future<ui.Image?> _captureWidgetAsImage() async {
+  //   try {
+  //     final boundary = _globalKey.currentContext?.findRenderObject()
+  //         as RenderRepaintBoundary?;
+  //     if (boundary == null) {
+  //       if (kDebugMode) {
+  //         print("RenderRepaintBoundary không tồn tại");
+  //       }
+  //       return null;
+  //     }
+  //
+  //     final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+  //     return image;
+  //   } catch (e) {
+  //     if (kDebugMode) {
+  //       print("Lỗi khi chụp widget thành hình ảnh: $e");
+  //     }
+  //     return null;
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -195,12 +170,11 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RepaintBoundary(
-                key: _globalKey,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: _buildTemplate(),
-                ),
+              // Không cần RepaintBoundary khi sử dụng InAppWebView
+              SizedBox(
+                width: MediaQuery.of(context).size.width + 20,
+                height: _webViewHeight,
+                child: _buildTemplate(),
               ),
               const SizedBox(height: 30),
               Row(
@@ -234,7 +208,7 @@ class _HomePageState extends State<HomePage> {
               ],
               if (_imagePackageBytes != null) ...[
                 const Text(
-                  "Ảnh cuôis:",
+                  "Ảnh cuối:",
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Image.memory(
