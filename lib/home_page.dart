@@ -1,13 +1,9 @@
-import 'dart:ui' as ui;
-
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:image/image.dart' as img;
-
 import 'common.dart';
 import 'const.dart';
 
@@ -19,7 +15,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final GlobalKey _globalKey = GlobalKey();
+  // final GlobalKey _globalKey = GlobalKey();
   InAppWebViewController? _webViewController;
   double _webViewHeight = 800;
   String htmlContent = "";
@@ -45,7 +41,6 @@ class _HomePageState extends State<HomePage> {
           _webViewController = controller;
         },
         onLoadStop: (controller, url) async {
-          // Lấy chiều cao của nội dung web
           String? heightString = await controller.evaluateJavascript(
               source: "document.body.scrollHeight.toString();");
           double height = double.tryParse(heightString ?? '800') ?? 800;
@@ -54,7 +49,6 @@ class _HomePageState extends State<HomePage> {
           });
         },
         onProgressChanged: (controller, progress) {
-          // Bạn có thể sử dụng progress để hiển thị tiến độ tải trang nếu muốn
         },
         onConsoleMessage: (controller, consoleMessage) {
           if (kDebugMode) {
@@ -99,9 +93,9 @@ class _HomePageState extends State<HomePage> {
         width: 580,
       );
 
-      // Convert scaled image to Uint8List
-      final Uint8List scaledPngBytes =
-          Uint8List.fromList(img.encodePng(scaledForPrint));
+      // // Convert scaled image to Uint8List
+      // final Uint8List scaledPngBytes =
+      //     Uint8List.fromList(img.encodePng(scaledForPrint));
 
       // setState(() {
       //   _uiImageBytes = imageBytes;
@@ -170,7 +164,6 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Không cần RepaintBoundary khi sử dụng InAppWebView
               SizedBox(
                 width: MediaQuery.of(context).size.width + 20,
                 height: _webViewHeight,
