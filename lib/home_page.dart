@@ -22,8 +22,11 @@ class _HomePageState extends State<HomePage> {
   final GlobalKey _globalKey = GlobalKey();
   late WebViewController _controller;
   double _webViewHeight = 800;
-
   String htmlContent = "";
+
+  Uint8List? _uiImageBytes;
+  Uint8List? _imagePackageBytes;
+
   @override
   void initState() {
     super.initState();
@@ -63,49 +66,62 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTemplate() {
-    return SizedBox(
-      width: MediaQuery.of(context).size.width + 20,
-      height: _webViewHeight, //need provide
-      child: WebViewWidget(controller: _controller),
+    return Transform.scale(
+      scale: 1.1,
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width + 20,
+        height: _webViewHeight, //need provide
+        child: WebViewWidget(controller: _controller),
+      ),
     );
   }
 
   Future<void> _captureAndPrintImage() async {
     try {
-      // Chụp ảnh từ widget và chuyển thành hình ảnh ui.Image
-      final ui.Image? image = await _captureWidgetAsImage();
-      if (image == null) {
+      // Capture the widget as ui.Image
+      final ui.Image? uiImage = await _captureWidgetAsImage();
+      if (uiImage == null) {
         if (kDebugMode) {
-          print("Không thể chụp widget thành hình ảnh");
+          print("Cannot capture widget as image");
         }
         return;
       }
 
-      // Chuyển đổi ui.Image thành Uint8List
+      // Convert ui.Image to Uint8List (PNG)
       final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
+          await uiImage.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         if (kDebugMode) {
-          print("Không thể chuyển đổi hình ảnh thành dữ liệu byte");
+          print("Cannot convert image to byte data");
         }
         return;
       }
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
+      // Decode using image package
       final img.Image? decodedImage = img.decodeImage(pngBytes);
       if (decodedImage == null) {
         if (kDebugMode) {
-          print("Không thể giải mã hình ảnh từ Uint8List");
+          print("Cannot decode image using image package");
         }
         return;
       }
 
+      // Optionally, resize for display or printing
       final img.Image scaledForPrint = img.copyResize(
         decodedImage,
         width: 580,
       );
 
-      // Thiết lập máy in
+      // Convert scaled image to Uint8List
+      final Uint8List scaledPngBytes =
+          Uint8List.fromList(img.encodePng(scaledForPrint));
+
+      setState(() {
+        _uiImageBytes = pngBytes;
+        _imagePackageBytes = scaledPngBytes;
+      });
+
       const PaperSize paper = PaperSize.mm80;
       final profile = await CapabilityProfile.load();
       final printer = NetworkPrinter(paper, profile);
@@ -113,25 +129,23 @@ class _HomePageState extends State<HomePage> {
       final PosPrintResult res =
           await printer.connect('192.168.29.150', port: 9100);
 
-      if (res == PosPrintResult.success) {
-        // In hình ảnh đã chụp được
-        printer.image(scaledForPrint);
-        printer.feed(2);
-        printer.cut();
-
-        // Ngắt kết nối sau khi in
-        printer.disconnect();
-        if (kDebugMode) {
-          print("In thành công");
-        }
-      } else {
-        if (kDebugMode) {
-          print("Không thể kết nối tới máy in: ${res.msg}");
-        }
-      }
+      // if (res == PosPrintResult.success) {
+      //   printer.image(scaledForPrint);
+      //   printer.feed(2);
+      //   printer.cut();
+      //
+      //   printer.disconnect();
+      //   if (kDebugMode) {
+      //     print("Print successful");
+      //   }
+      // } else {
+      //   if (kDebugMode) {
+      //     print("Cannot connect to printer: ${res.msg}");
+      //   }
+      // }
     } catch (e) {
       if (kDebugMode) {
-        print("Lỗi khi chụp và in hình ảnh: $e");
+        print("Error capturing and printing image: $e");
       }
     }
   }
@@ -160,23 +174,64 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("Hiển Thị Hình Ảnh và Base64"),
+      ),
       body: SingleChildScrollView(
-        child: Column(
-          children: [
-            RepaintBoundary(
-              key: _globalKey,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: _buildTemplate(),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RepaintBoundary(
+                key: _globalKey,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: _buildTemplate(),
+                ),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await _captureAndPrintImage();
-              },
-              child: const Text("Print"),
-            ),
-          ],
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      await _captureAndPrintImage();
+                    },
+                    child: const Text("In"),
+                  ),
+                  const SizedBox(width: 30),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {});
+                    },
+                    child: const Text("Set State"),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+              if (_uiImageBytes != null) ...[
+                const Text(
+                  "Ảnh raw:",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Image.memory(
+                  _uiImageBytes!,
+                  fit: BoxFit.cover,
+                ),
+                const SizedBox(height: 20),
+              ],
+              if (_imagePackageBytes != null) ...[
+                const Text(
+                  "Ảnh cuôis:",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Image.memory(
+                  _imagePackageBytes!,
+                  fit: BoxFit.cover,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
